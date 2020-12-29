@@ -5,7 +5,7 @@ in_path="/p/keles/fandingzhou/volumeA/TAD/GM12878"
 in_path2="/p/keles/fandingzhou/volumeA/DCI/diffHic/data/filter"
 out_path=c("/p/keles/fandingzhou/volumeA/DCI/multiHiCcompare/data/weighttable","/p/keles/fandingzhou/volumeA/DCI/diffHic/data/weighttable/filter")
 func_path="/p/keles/fandingzhou/volumeA/DCI/code/tree/"
-GM_spike_in_scale10_seqx5_aggregated_contactmatrix.tsv
+func_path2="/p/keles/fandingzhou/volumeA/DCI/code/tree/plot"
 meth=c("multiHiCcompare","diffHic")
 seqdepth<-c(1,3,5)
 group<-c("A","GM12","GM13","GM14")
@@ -22,7 +22,9 @@ library(ggplot2,lib.loc = dict_path)
 
 
 #source(paste0(func_path,"filter_group_function.R"))
-dci_or_fdr="FDR"
+#source(paste0(func_path,"get_fdr_tp_tree_function.R"))
+#source(paste0(func_path,"tree_layer_function.R"))
+#source(paste0(func_path2,"get_fdr_tp_function.R"))
 
 bin_size<-40000
 ch1_length<-249250621

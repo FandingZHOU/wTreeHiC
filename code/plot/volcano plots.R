@@ -14,16 +14,16 @@ scalesize<-c(2,3,5,10)
 bin_size=40000
 
 
-
-#install.packages("Cairo",lib=dict_path)
-#BiocManager::install("Cairo",lib = dict_path)
 library(crayon,lib.loc = dict_path)
 library(readr,lib.loc = dict_path)
 library(data.table,lib.loc = dict_path)# 
 library(dplyr,lib.loc = dict_path)# 
 
 library(ggplot2,lib.loc = dict_path)
+
 TSetKey<-unique(scan(paste0(out_path[2],"/TSetKey"),what = character()))
+
+
 diffHic_volvano<-function(HiCbinpairs,TSetKey,scalesize,seqdepth){
 allbinpair<-paste0(HiCbinpairs$end2-bin_size/2,"_",HiCbinpairs$end1-bin_size/2)
 volcano<-subset(HiCbinpairs,select = c(FDR,logFC))
@@ -34,6 +34,8 @@ r05=r04+geom_vline(xintercept=c(-1.5,1.5),linetype="dotted",size=1)+geom_hline(y
   xlab("log2 fold change") + ylab("-log10 adj p-value") 
 print(r05)
 }
+
+
 MultiHiCcompare_volvano<-function(HiCbinpairs,TSetKey,scalesize,seqdepth){
   allbinpair<-paste0(HiCbinpairs$region1+bin_size/2,"_",HiCbinpairs$region2+bin_size/2)
   volcano<-subset(HiCbinpairs,select = c(p.value,logFC))
