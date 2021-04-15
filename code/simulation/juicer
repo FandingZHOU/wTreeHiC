@@ -1,0 +1,12 @@
+cd /p/keles/fandingzhou/volumeA/software
+for j in 2 3 4 6
+do
+java -Xmx2g -jar juicer_tools_1.22.01.jar pre -r 40000 /p/keles/fandingzhou/volumeA/DCI/juicebox/GM12878_rep$j_chr1.binPairs.chr1 /p/keles/fandingzhou/volumeA/DCI/juicebox/GM12878_rep$j.hic hg19
+done
+for i in 2 3 4 6
+do
+for i in 2 3 4 6
+do
+java -Xmx2g -jar juicer_tools_1.22.01.jar pre -r 40000 /p/keles/fandingzhou/volumeA/DCI/juicebox/GM12878_rep$j_chr1.binPairs.chr1 /p/keles/fandingzhou/volumeA/DCI/juicebox/GM12878_rep$j.hic hg19
+done
+done
