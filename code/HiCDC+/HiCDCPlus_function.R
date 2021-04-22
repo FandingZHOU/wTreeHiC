@@ -14,6 +14,11 @@ binB<-function(x,bin_size,tomid=F){
 }
 
 hicmatrix<-function(inputfile,out_path,n_bin=NULL,bin_size,ch1_length=NULL,chr){
+  out_path=paste0(out_path,"/hicmatrix")
+  if(!dir.exists(out_path)){
+    dir.create(out_path)
+  }
+  
   if(is.null(ch1_length)){
     all.regions<-data.frame(cbind(rep(paste0("chr",chr),n_bin+1),seq(1,n_bin*bin_size+1,bin_size),c(seq(bin_size,n_bin*bin_size,bin_size)),1:(n_bin+1)))
   }else{
@@ -32,7 +37,7 @@ hicmatrix<-function(inputfile,out_path,n_bin=NULL,bin_size,ch1_length=NULL,chr){
       data.table::fwrite(binpair_data,paste0(out_path,"/G1_rep",j),sep = "\t",col.names = F)
       
     }else{
-      data.table::fwrite(binpair_data,paste0(out_path,"/G2_rep",j),sep = "\t",col.names = F)
+      data.table::fwrite(binpair_data,paste0(out_path,"/G2_rep",j-nrep),sep = "\t",col.names = F)
       
     }
   }
@@ -41,6 +46,11 @@ hicmatrix<-function(inputfile,out_path,n_bin=NULL,bin_size,ch1_length=NULL,chr){
 ##inpath contains both bedfile and IF matrix files
 hicdcmatrix<-function(in_path,out_path,nrep,chr,n_bin,bin_size,ch1_length=NULL,ncore=2,long_range=T,gen = "Mmusculus",
                       gen_ver = "mm9"){
+  out_path=paste0(out_path,"/hicmatrix")
+  if(!dir.exists(out_path)){
+    dir.create(out_path)
+  }
+  
   indexfile<-data.frame()
   if(is.null(ch1_length)){
     ch1_length=bin_size*n_bin
@@ -48,8 +58,10 @@ hicdcmatrix<-function(in_path,out_path,nrep,chr,n_bin,bin_size,ch1_length=NULL,n
   for(j in 1:(nrep*2)){
     if(j<=nrep){
       Gp<-"G1"
+      repl=j
     }else{
       Gp<-"G2"
+      repl=j-nrep
     }
     gi_list<-generate_binned_gi_list(bin_size,chrs=paste0('chr',chr),Dthreshold = ch1_length,gen,
                                      gen_ver )
@@ -58,8 +70,8 @@ hicdcmatrix<-function(in_path,out_path,nrep,chr,n_bin,bin_size,ch1_length=NULL,n
     gi_list<-add_hicpro_matrix_counts(
       gi_list,
       paste0(in_path,"/bedfile"),
-      paste0(in_path,"/",Gp,"_rep",j),
-      chrs="chr1"
+      paste0(in_path,"/",Gp,"_rep",repl),
+      chrs=rep("chr",chr)
     )
     gi_list<-expand_1D_features(gi_list)
     #run HiC-DC+ on 2 cores
@@ -73,7 +85,7 @@ hicdcmatrix<-function(in_path,out_path,nrep,chr,n_bin,bin_size,ch1_length=NULL,n
     gi_list[[1]]<-gi_list[[1]][(!is.na(gi_list_qval))]
     indexfile<-unique(rbind(indexfile,
                             as.data.frame(gi_list[[1]][gi_list[[1]]$qvalue<=0.05])[c('seqnames1','start1','start2')]))
-    saveRDS(gi_list,paste0(out_path,"/",Gp,"_rep",j,"sig_interact.rds"))
+    saveRDS(gi_list,paste0(out_path,"/",Gp,"_rep",repl,"sig_interact.rds"))
   }
   colnames(indexfile)<-c('chr','startI','startJ')
   data.table::fwrite(indexfile,
@@ -81,32 +93,41 @@ hicdcmatrix<-function(in_path,out_path,nrep,chr,n_bin,bin_size,ch1_length=NULL,n
                      sep='\t',row.names=FALSE,quote=FALSE)
   
 }
-
-hicdcdiff2<-function(input_paths,output_path,filter_path,bin_size,chr,...){
-  filter1<-scan(filter_path,what = character())
-  filterset<-strsplit(x=filter1, split="_")
-  indexfile<- data.frame()
-  indexfile<-cbind(rep('chr',chr,length(filter1)),sapply(filterset, binA,bin_size),sapply(filterset, binB,bin_size))
-  colnames(indexfile)<-c('chr','startI','startJ')
-  data.table::fwrite(indexfile,
-                     paste0(output_path,'/filter_indices.txt.gz'),
-                     sep='\t',row.names=FALSE,quote=FALSE)
-  output_path2=paste0(output_path,"/originaltable/")
-  if(dir.exists(output_path2)){
-    dir.create(output_path2)
-  }
-  hicdcdiff(input_paths,output_path2,filter_file,
-            Dmin = 3*bin_size,
-            Dmax = ch1_length,
-            binsize=bin_size,
-            granularity=bin_size,
-            DESeq.save=TRUE,
-            diagnostics=F
-  )
-  
-}
-
-
+hicdcdiff2<-function(input_paths,output_path,filter_path,bin_size,chr,ch_length,long_range=T,nrep,reformat=T,...){
+     filter1<-scan(filter_path,what = character())
+     filterset<-strsplit(x=filter1, split="_")
+      indexfile<- data.frame()
+      indexfile<-cbind(rep(paste0('chr',chr),length(filter1)),sapply(filterset, binA,bin_size),sapply(filterset, binB,bin_size))
+      colnames(indexfile)<-c('chr','startI','startJ')
+      data.table::fwrite(indexfile,
+                        paste0(output_path,'/filter_indices.txt.gz'),
+                        sep='\t',row.names=FALSE,quote=FALSE)
+      output_path2=paste0(output_path,"/HiCDCPlus/originaltable/")
+      if(!dir.exists(output_path2)){
+          dir.create(output_path2)
+        }
+      filter_file=paste0(output_path,'/filter_indices.txt.gz')
+      if(long_range){
+          Dmin=3*bin_size
+        }else{
+            Dmin=0
+        }
+      
+      input_files<-list(Gp1=paste0(input_paths,"/G1_rep",1:nrep,"sig_interact.rds"),
+                        Gp2=paste0(input_paths,"/G2_rep",1:nrep,"sig_interact.rds"))
+      hicdcdiff(input_paths=input_files,
+                              output_path=output_path2,
+                              filter_file=filter_file,
+                              Dmin =Dmin,
+                              Dmax = ch_length,
+                              binsize=bin_size,
+                              granularity=bin_size,
+                              DESeq.save=TRUE,
+                              diagnostics=F,
+                              reformat = reformat
+                    )
+   
+      }
 .readDiffInputFiles <- function(conds, input_paths, sigs, chrom, Dmin, Dmax, dband, bin_type, binsize) {
   retlist <- list()
   normfac <- NULL
@@ -204,8 +225,15 @@ hicdcdiff2<-function(input_paths,output_path,filter_path,bin_size,chr,...){
   retlist[["sigbins"]] <- sigbins
   return(retlist)
 }
-
-
+# 
+# bin_type = "Bins-uniform"
+# binsize = bin_size
+# granularity = bin_size
+# chrs = NULL
+# Dmax = ch_length
+# diagnostics = FALSE
+# DESeq.save = T
+# fitType = "local"
 hicdcdiff <- function(input_paths, filter_file, output_path, bin_type = "Bins-uniform", binsize = 5000, granularity = 5000, 
                       chrs = NULL, Dmin = 0, Dmax = 2e+06, diagnostics = FALSE, DESeq.save = FALSE, fitType = "local",reformat=F) {
   options(scipen = 100, digits = 4, warn = -1)
@@ -272,7 +300,7 @@ hicdcdiff <- function(input_paths, filter_file, output_path, bin_type = "Bins-un
     
     # save DESeq file
     if (DESeq.save) {
-      deseq2path <- paste0(output_path, chr, "_DESeq2_obj.rds")
+      deseq2path <- paste0(output_path,"/", chr, "_DESeq2_obj.rds")
       deseq2output <- path.expand(deseq2path)
       deseq2outputdir<-gsub("/[^/]+$", "",deseq2output)
       if (deseq2outputdir==deseq2output){
@@ -291,7 +319,7 @@ hicdcdiff <- function(input_paths, filter_file, output_path, bin_type = "Bins-un
         tset<-strsplit(x=rownames(HiCbinpairs), split=":")
         HiCbinpairs_data<-data.frame(cbind(sapply(tset, binA,bin_size,T),sapply(tset, binB,bin_size,T),HiCbinpairs$stat,HiCbinpairs$pvalue))
         colnames(HiCbinpairs_data)<-c("bin_1","bin_2","Z","P")
-        deseq2path2<-paste0(output_path, chr, "_DESeq2_table")
+        deseq2path2<-paste0(output_path, "/",chr, "_DESeq2_table")
         write_tsv(HiCbinpairs_data, deseq2path2)
       }
       
