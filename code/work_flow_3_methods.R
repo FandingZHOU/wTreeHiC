@@ -58,24 +58,26 @@ library("BSgenome.Mmusculus.UCSC.mm9",verbose=T)
 source(paste0(func_path1,"/multiHiCcompare_function.R"))
 source(paste0(func_path2,"/diffHic_table.R"))
 
+#############
+##real data##
+#############
 
-#real data
-
-##multiHiCcompare
+#Some important parameters
 in_path="/p/keles/fandingzhou/volumeA/real_data"
 chr=1
 bin_size=20000
 nrep=2
-Amin=1
-other_filtering=F
-filter_file=NULL
 inputfile=c(paste0(in_path,"/data/Auxin/chr",chr,"/rep",1:nrep,"_chr",chr,".binPairs.chr",chr),
-             paste0(in_path,"/data/Untreated/chr",chr,"/rep",1:nrep,"_chr",chr,".binPairs.chr",chr))
+            paste0(in_path,"/data/Untreated/chr",chr,"/rep",1:nrep,"_chr",chr,".binPairs.chr",chr))
 reformat=T
 long_range=T
 TSetKey=NULL
 ch_length=197195432
+
+
+## multiHiCcompare
 out_path1="/p/keles/fandingzhou/volumeA/real_data/filter_as_multiHiCcompare"
+Amin=1
 
 #inputfile: 4 or 8 hic tables (format the same with original GM12878)
 #outpath: some outputs to outpath, including the table with pvalue and fvalue and kept binpairs after filtering
@@ -88,23 +90,31 @@ out_path1="/p/keles/fandingzhou/volumeA/real_data/filter_as_multiHiCcompare"
 #long_range: if true, filter out short-range interactions(<=2 bins)
 #TSetkey: for simulated data, we can get the true sets after filtering
 
-hic_table<-use_multiHiCcompare(inputfile,out_path1,res=bin_size,nrep,Amin=1,other_filtering=F,filter_file=NULL,reformat=T,long_range=T,TSetKey=NULL)
-head(sort(p.adjust(hic_table$P)))
-##diffHic
+hic_table<-use_multiHiCcompare(inputfile,out_path1,res=bin_size,nrep,Amin=Amin,other_filtering=F,filter_file=NULL,reformat=T,long_range=T,TSetKey=NULL)
+
+
+##diffHic & preparation for A/B compartment and OnTAD
 source(paste0(func_path2,"/contactmatrix.R"))
 out_path2="/p/keles/fandingzhou/volumeA/real_data/filter_as_diffHic/diffHic"
-out_path2_2="/p/keles/fandingzhou/volumeA/real_data/filter_as_diffHic"
+out_path2.2="/p/keles/fandingzhou/volumeA/real_data/filter_as_diffHic"
+out_path2.3="/p/keles/fandingzhou/volumeA/real_data/ABcompartment"
+out_path2.4="/p/keles/fandingzhou/volumeA/real_data/OnTAD"
 
 #convert into symmetric matrices
 cm<-multi_ContactMatrices(inputfile,out_path2,bin_size,ch_length,n.cores=4)
+
+#merge matrices for abcompartments and tads
+merge_ContactMatrices(cm,out_path2.3,ngroup=1)
+merge_ContactMatrices(cm,out_path2.4,ngroup=2)
+
 #use diffHic
-hic_table2<-use_diffHic(cm,out_path2_2,bin_size,filter_par=1.5,reformat=T,other_filtering=F,filter_file=NULL,long_range=T,TSetKey=NULL,chr)
-#filter as multiHiCcompare
+hic_table2<-use_diffHic(cm,out_path2.2,bin_size,filter_par=1.5,reformat=T,other_filtering=F,filter_file=NULL,long_range=T,TSetKey=NULL,chr)
+#diffHic filter as multiHiCcompare
 filter_file_multi<-paste0(out_path1,"/Trueset/pairs_keep")
 hic_table3<-use_diffHic(cm,out_path1,bin_size,filter_par=1.5,reformat=T,other_filtering=T,filter_file=filter_file_multi,long_range=T,TSetKey=NULL,chr)
 
 #multiHiCcompare filtered as diffHic
-filter_file_diffHic<-paste0(out_path2_2,"/Trueset/pairs_keep")
+filter_file_diffHic<-paste0(out_path2.2,"/Trueset/pairs_keep")
 hic_table4<-use_multiHiCcompare(inputfile,out_path1,res=bin_size,nrep,Amin=1,other_filtering=T,filter_file=filter_file_diffHic,reformat=T,long_range=T,TSetKey=NULL)
 
 
@@ -112,49 +122,85 @@ hic_table4<-use_multiHiCcompare(inputfile,out_path1,res=bin_size,nrep,Amin=1,oth
 ##hic-dc+
 source(paste0(func_path3,"/HiCDCPlus_function.R"))
 
-out_path3="/p/keles/fandingzhou/volumeA/real_data/filter_as_HiCDCPlus/HiCDCPlus/hicmatrix"
-if(!dir.exists(out_path3)){
-  dir.create(out_path3)
-}
-n_bin<-nrow(cm[[1]])
-##convert matrix to hic-pro format
-a<-hicmatrix(inputfile,out_path3,bin_size=bin_size,ch1_length=ch_length,chr=chr)
-b<-hicdcmatrix(out_path3,out_path3,nrep=2,chr=chr,bin_size=bin_size,ch1_length=ch_length,ncore=2,long_range=T)
-out_path3.2="/p/keles/fandingzhou/volumeA/real_data/filter_as_diffHic/HiCDCPlus"
+out_path3="/p/keles/fandingzhou/volumeA/real_data/filter_as_HiCDCPlus/HiCDCPlus"
+out_path3.2="/p/keles/fandingzhou/volumeA/real_data/filter_as_diffHic"
+out_path3.3="/p/keles/fandingzhou/volumeA/real_data/filter_as_multiHiCcompare"
 filter_file_multi<-paste0(out_path1,"/Trueset/pairs_keep")
-filter_file_diffHic<-paste0(out_path2_2,"/Trueset/pairs_keep")
+filter_file_diffHic<-paste0(out_path2.2,"/Trueset/pairs_keep")
 
-hicdcdiff2(out_path3,out_path3.2,filter_path,bin_size,chr)
-  
+#n_bin<-nrow(cm[[1]])
+n_bin<-floor(ch_length/bin_size)
+##convert matrix to hic-pro format;outputs are saved in /out_path/hicmatrix
+a<-hicmatrix(inputfile,out_path3,bin_size=bin_size,ch1_length=ch_length,chr=chr)
+##convert matrix to hicdc+; 
+b<-hicdcmatrix(out_path3,out_path3,nrep=2,chr=chr,bin_size=bin_size,ch1_length=ch_length,ncore=2,long_range=T)
+##hicdc+ filter as diffHic
+hicdcdiff2(paste0(out_path3,"/hicmatrix"),out_path3.2,filter_file_diffHic,bin_size,chr,ch_length,long_range=T,nrep,reformat=T)
+##hicdc+ filter as multiHiCcompare
+hicdcdiff2(paste0(out_path3,"/hicmatrix"),out_path3.3,filter_file_multi,bin_size,chr,ch_length,long_range=T,nrep,reformat =T)
 
 
 
-
-
-
-
-#simulated data 4vs4 example
+#############################
+#simulated data 4vs4 example#
+#############################
 nrep<-4
 rep<-c(2,3,4,6)
 seed=11
 foldchange=4
 bin_size=40000
 ch_length<-249250621
-
+out_path_original<-"/p/keles/fandingzhou/volumeA/DCI/filter/"
 TSetKey<-scan(paste0("/p/keles/fandingzhou/volumeA/DCI/simulation/True_signal",seed),what = character())
 inputfile=c(paste0("/p/keles/scrna-seq/volumeC/freeHiC/GM12878/rep",rep,"/chr1/s1_training/binPairs/rep",rep,"_chr1.binPairs.chr1"),
             paste0("/p/keles/fandingzhou/volumeA/DCI/simulation/GM12878/seed",seed,"_FC",foldchange,"_rep",rep,"_chr1.binPairs.chr1"))
-out_path<-paste0("/p/keles/fandingzhou/volumeA/DCI/filter/seed",seed,"/4vs4/filter_as_multiHiCcompare/FC",foldchange)
-#filter_pairs<-scan(paste0(in_path2[k],"/Trueset/GMvsGMFC",foldchange,"_keep"),what = character())
-hic_table<-use_multiHiCcompare(inputfile,out_path,res=bin_size,nrep,Amin=1,other_filtering=F,filter_file=NULL,reformat=T,long_range=T,TSetKey)
 
-out_path2<-paste0("/p/keles/fandingzhou/volumeA/DCI/filter/seed",seed,"/4vs4/filter_as_diffHic/FC",foldchange)
+#multiHiCcompare with truesig
+out_path1<-paste0(out_path_original,"seed",seed,"/4vs4/filter_as_multiHiCcompare/FC",foldchange)
+hic_table<-use_multiHiCcompare(inputfile,out_path1,res=bin_size,nrep,Amin=1,other_filtering=F,filter_file=NULL,reformat=T,long_range=T,TSetKey)
+
+#diffHic with truesig
+out_path2<-paste0(out_path_original,"seed",seed,"/4vs4/filter_as_diffHic/FC",foldchange)
 cm<-multi_ContactMatrices(inputfile,out_path2,bin_size,ch_length,n.core=4)
-hic_table2<-use_diffHic(cm,out_path2,bin_size,filter_par=1,reformat=T,other_filtering=F,filter_file=NULL,long_range=T,TSetKey=NULL)
+hic_table2<-use_diffHic(cm,out_path2,bin_size,filter_par=1,reformat=T,other_filtering=F,filter_file=NULL,long_range=T,TSetKey)
 
+#prepare for compartments and tads
+out_path2.3=paste0(out_path_original,"/ABcompartment")
+out_path2.4=paste0(out_path_original,"/OnTAD")
+merge_ContactMatrices(cm,out_path2.3,ngroup=1)
+merge_ContactMatrices(cm,out_path2.4,ngroup=2)
 
+#diffHic filter as multiHiCcompare
+filter_file_multi<-paste0(out_path1,"/Trueset/pairs_keep")
+hic_table3<-use_diffHic(cm,out_path1,bin_size,filter_par=1,reformat=T,other_filtering=T,filter_file=filter_file_multi,long_range=T,TSetKey=NULL,chr)
 
+#multiHiCcompare filtered as diffHic
+filter_file_diffHic<-paste0(out_path2,"/Trueset/pairs_keep")
+hic_table4<-use_multiHiCcompare(inputfile,out_path1,res=bin_size,nrep,Amin=1,other_filtering=T,filter_file=filter_file_diffHic,reformat=T,long_range=T,TSetKey=NULL)
 
+##hic-dc+
+
+out_path3=paste0(out_path_original,"seed",seed,"/4vs4/filter_as_HiCDCPlus/FC",foldchange)
+out_path3.2="/p/keles/fandingzhou/volumeA/real_data/filter_as_diffHic"
+out_path3.3="/p/keles/fandingzhou/volumeA/real_data/filter_as_multiHiCcompare"
+
+filter_file_multi<-paste0(out_path1,"/Trueset/pairs_keep")
+filter_file_diffHic<-paste0(out_path2.2,"/Trueset/pairs_keep")
+# if(!dir.exists(out_path3)){
+#   dir.create(out_path3)
+# }
+
+#n_bin<-nrow(cm[[1]])
+n_bin<-floor(ch_length/bin_size)
+##convert matrix to hic-pro format
+a<-hicmatrix(inputfile,out_path3,bin_size=bin_size,ch1_length=ch_length,chr=chr)
+##convert matrix to hicdc+ 
+b<-hicdcmatrix(out_path3,out_path3,nrep=nrep,chr=chr,bin_size=bin_size,ch1_length=ch_length,long_range=T,gen = "Hsapiens",
+               gen_ver = "hg19")
+##hicdc+ filter as diffHic
+hicdcdiff2(out_path3,out_path3.2,filter_file_diffHic,bin_size,chr,ch_length,long_range=T,nrep,reformat=T)
+##hicdc+ filter as multiHiCcompare
+hicdcdiff2(out_path3,out_path3.3,filter_file_multi,bin_size,chr,ch_length,long_range=T,nrep,reformat =T)
 
 ###2vs2
 
